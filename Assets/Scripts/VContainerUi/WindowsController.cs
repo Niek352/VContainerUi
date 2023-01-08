@@ -10,6 +10,7 @@ using VContainerUi.Interfaces;
 using VContainerUi.Messages;
 using VContainerUi.Model;
 using VContainerUi.Services;
+using Object = UnityEngine.Object;
 
 namespace VContainerUi
 {
@@ -23,9 +24,10 @@ namespace VContainerUi
 		private readonly IUiMessagesPublisherService _uiMessagesPublisher;
 		private readonly Stack<IWindow> _windowsStack = new Stack<IWindow>();
 		private readonly CompositeDisposable _disposables = new CompositeDisposable();
-		
-		private IWindow _window;
+		private readonly UiScope _scope;
+		private readonly Canvas _canvas;
 
+		private IWindow _window;
 		public Stack<IWindow> Windows => _windowsStack;
 
 		public WindowsController(
@@ -33,7 +35,9 @@ namespace VContainerUi
 			IReadOnlyList<IWindow> windows, 
 			WindowState windowState,
 			IUiMessagesReceiverService uiMessagesReceiver,
-			IUiMessagesPublisherService uiMessagesPublisher
+			IUiMessagesPublisherService uiMessagesPublisher,
+			UiScope scope,
+			Canvas canvas
 			)
 		{
 			_container = container;
@@ -41,24 +45,27 @@ namespace VContainerUi
 			_windowState = windowState;
 			_uiMessagesReceiver = uiMessagesReceiver;
 			_uiMessagesPublisher = uiMessagesPublisher;
+			_scope = scope;
+			_canvas = canvas;
 		}
 
 		public void Initialize()
 		{
-			_uiMessagesReceiver.OpenWindowSubscriber.Subscribe(OnOpen).AddTo(_disposables);
-			_uiMessagesReceiver.BackWindowSubscriber.Subscribe(_=> OnBack()).AddTo(_disposables);
+			_uiMessagesReceiver.OpenWindowSubscriber.Subscribe(OnOpen,new UiMessageFilter<MessageOpenWindow>(_scope)).AddTo(_disposables);
+			_uiMessagesReceiver.BackWindowSubscriber.Subscribe(_=> OnBack(),new UiMessageFilter<MessageBackWindow>(_scope)).AddTo(_disposables);
 			_uiMessagesReceiver.OpenRootWindowSubscriber.Subscribe(OnOpenRootWindow).AddTo(_disposables);
 		}
 
 		public void Dispose()
 		{
+			if (_canvas != null)
+				Object.Destroy(_canvas.gameObject);
 			_disposables.Dispose();
 		}
 
 		private void OnOpen(MessageOpenWindow message)
 		{
 			IWindow window;
-			Debug.Log("OnOpen");
 			if (message.Type != null)
 				window = _container.Resolve(message.Type) as IWindow;
 			else
